@@ -1,0 +1,4 @@
+SAMPLE_RATE = 16000
+CHANNELS = 1
+CHUNK_DURATION = 2  #seconds
+SAVE_DIR = "audio_chunks"

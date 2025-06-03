@@ -6,8 +6,7 @@ from audio.chunk_processor import chunk_processor
 from core.logger import logger
 from config.session_stats import SessionStats
 from datetime import datetime
-from config.session import SESSION_ID
-
+from config.session import SESSION_ID, SESSION_AUDIO_DIR, SESSION_LOG_DIR
 import os
 
 #Shutdown flag

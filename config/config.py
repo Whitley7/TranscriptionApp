@@ -1,5 +1,5 @@
 import numpy as np
-from session import SESSION_ID
+from config.session import SESSION_ID
 import os
 
 SAMPLE_RATE = 16000

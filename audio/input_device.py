@@ -1,5 +1,5 @@
 import sounddevice as sd
-from config import PREFERRED_DEVICE_INDEX
+from config.config import PREFERRED_DEVICE_INDEX
 
 def list_audio_input_devices():
     devices = sd.query_devices()

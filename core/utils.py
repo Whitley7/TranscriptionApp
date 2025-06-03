@@ -1,5 +1,9 @@
 import wave
 import os
+
+import numpy as np
+
+from config.config import SILENCE_THRESHOLD, CHANNELS, AUDIO_FORMAT
 from core.logger import logger
 from typing import Optional
 

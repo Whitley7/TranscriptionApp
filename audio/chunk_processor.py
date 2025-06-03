@@ -1,7 +1,8 @@
 from itertools import count as counter
 import numpy as np
 import time
-from audio_input import frame_queue
+from audio.audio_input import frame_queue
+from config.config import CHUNK_DURATION, OVERLAP_DURATION, SESSION_AUDIO_DIR
 from core.utils import *
 import os
 import queue

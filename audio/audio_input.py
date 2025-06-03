@@ -1,5 +1,7 @@
 import sounddevice as sd
 import queue
+
+from config.config import FRAME_DURATION, CHANNELS, AUDIO_FORMAT
 from core.logger import logger
 
 frame_queue = queue.Queue()

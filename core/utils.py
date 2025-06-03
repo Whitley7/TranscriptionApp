@@ -1,8 +1,8 @@
 import wave
 import os
-from logger import logger
+from core.logger import logger
 from typing import Optional
-from config import *
+
 
 def normalize_audio(chunk: np.ndarray) -> np.ndarray:
     """
@@ -18,6 +18,27 @@ def normalize_audio(chunk: np.ndarray) -> np.ndarray:
     if peak > 0:
         return chunk.astype(np.float32) / peak
     return chunk.astype(np.float32)
+
+
+def process_audio_chunk(chunk: np.ndarray, filename: str, duration: float, sample_rate: int) -> Optional[np.ndarray]:
+    """
+    Processes an audio chunk: filters silence, normalizes, logs, and returns processed chunk.
+
+    Returns:
+        np.ndarray or None: normalized chunk if not silent, else None.
+    """
+    volume = np.mean(np.abs(chunk))
+
+    if volume < SILENCE_THRESHOLD:
+        log_chunk_info(filename=filename, volume=volume, duration=duration, skipped=True, reason="Below silence threshold")
+        return None
+
+    normalized = normalize_audio(chunk)
+    scaled_chunk = (normalized * 32767).astype(np.int16)
+
+    log_chunk_info(filename=filename, volume=volume, duration=duration)
+    return scaled_chunk
+
 
 
 def save_wav(chunk: np.ndarray, filename: str, sample_rate: int):
@@ -41,7 +62,7 @@ def save_wav(chunk: np.ndarray, filename: str, sample_rate: int):
             wf.writeframes(chunk.astype(AUDIO_FORMAT).tobytes())
         logger.debug(f"✅ WAV saved: {filename}")
     except Exception as e:
-        logger.error(f"❌ Error saving WAV: {e}")
+        logger.error(f"Error saving WAV: {e}")
 
 
 def log_chunk_info(filename: str, volume: float, duration: float, skipped: bool = False, reason: Optional[str] = None):
@@ -60,6 +81,6 @@ def log_chunk_info(filename: str, volume: float, duration: float, skipped: bool 
     """
     if skipped:
         reason_str = f" | Reason: {reason}" if reason else ""
-        logger.info(f"🔇 Skipped chunk | Volume: {volume:.4f} | Duration: {duration:.2f}s{reason_str}")
+        logger.info(f"Skipped chunk | Volume: {volume:.4f} | Duration: {duration:.2f}s{reason_str}")
     else:
-        logger.info(f"💾 Saved chunk: {filename} | Volume: {volume:.4f} | Duration: {duration:.2f}s")
+        logger.info(f"Saved chunk: {filename} | Volume: {volume:.4f} | Duration: {duration:.2f}s")

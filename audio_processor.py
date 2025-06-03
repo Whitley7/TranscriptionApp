@@ -4,7 +4,7 @@ import wave
 import time
 import os
 from datetime import datetime
-from input_device_selection import select_input_device
+from input_device import select_input_device
 from config import *
 
 # Create save directory if not exists
@@ -18,14 +18,13 @@ OVERLAP_DURATION = 0.5        # seconds of overlap between chunks
 
 # Runtime buffers
 frame_queue = []              # holds short frames
-sample_rate = None
+sample_rate = SAMPLE_RATE
 
 
 def record_callback(indata, frames, time_info, status):
     if status:
         print("Recording status:", status)
     frame_queue.append(indata.copy())
-
 
 def record_chunks(device_index, sr):
     global sample_rate
@@ -63,7 +62,7 @@ def record_chunks(device_index, sr):
                     tail = full_chunk[-overlap_size:].copy()
 
                     # Process and save chunk
-                    process_and_save_chunk(full_chunk, sample_rate)
+                    save_chunk(full_chunk, sample_rate)
 
                     # Reset buffer with tail (for overlap)
                     buffer = [tail]
@@ -71,8 +70,7 @@ def record_chunks(device_index, sr):
         except KeyboardInterrupt:
             print("\n⏹️ Recording stopped.")
 
-
-def save_chunk(audio_data, filename, sample_rate):
+def write_wav(audio_data, filename, sample_rate):
     try:
         with wave.open(filename, 'wb') as wf:
             wf.setnchannels(CHANNELS)
@@ -83,11 +81,29 @@ def save_chunk(audio_data, filename, sample_rate):
     except Exception as e:
         print(f"❌ Error saving chunk: {e}")
 
+def normalize_audio(chunk: np.ndarray) -> np.ndarray:
+    """Normalize audio chunk to [-1.0, 1.0] float32. If silent, return float32 unchanged."""
+    peak = np.max(np.abs(chunk))
+    if peak > 0:
+        return chunk.astype(np.float32) / peak
+    return chunk.astype(np.float32)
 
-def process_and_save_chunk(chunk, sample_rate):
+
+def save_chunk(chunk, sample_rate):
+
+    volume = np.mean(np.abs(chunk))
+    if volume < 0.02:
+        print("🔇 Skipping noisy chunk (no speech)")
+        return
+
+    normalized = normalize_audio(chunk)
+
+    scaled_chunk = (normalized * 32767).astype(np.int16)
+
+    # Save the normalized chunk
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     filename = os.path.join(SAVE_DIR, f"chunk_{timestamp}.wav")
-    save_chunk(chunk, filename, sample_rate)
+    write_wav(scaled_chunk, filename, sample_rate)
 
 
 # --- Run Block ---

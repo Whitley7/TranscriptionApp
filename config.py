@@ -1,4 +1,9 @@
+import numpy as np
+
 SAMPLE_RATE = 16000
 CHANNELS = 1
-CHUNK_DURATION = 2  #seconds
+CHUNK_DURATION = 2 #seconds
 SAVE_DIR = "audio_chunks"
+PREFERRED_DEVICE_INDEX = 2
+FRAME_DURATION = 0.02
+AUDIO_FORMAT = np.int16

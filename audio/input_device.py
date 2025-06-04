@@ -17,7 +17,7 @@ def select_input_device():
             device_info = sd.query_devices(PREFERRED_DEVICE_INDEX)
             return PREFERRED_DEVICE_INDEX, int(device_info['default_samplerate'])
         except Exception as e:
-            print(f"⚠️ Could not use preferred device index ({PREFERRED_DEVICE_INDEX}): {e}")
+            print(f"Could not use preferred device index ({PREFERRED_DEVICE_INDEX}): {e}")
 
 
     input_devices = list_audio_input_devices()

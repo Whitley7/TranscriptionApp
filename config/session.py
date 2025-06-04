@@ -1,13 +1,15 @@
-from datetime import datetime
 import os
+from datetime import datetime
 
-SESSION_ID = f"session-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+class SessionManager:
+    def __init__(self):
+        self.session_id = f"session-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        self.session_root = os.path.join("sessions", self.session_id)
+        self.audio_dir = os.path.join(self.session_root, "audio_chunks")
+        self.log_dir = os.path.join(self.session_root, "logs")
 
-# Full root folder for this session
-SESSION_ROOT = os.path.join("../sessions", SESSION_ID)
-SESSION_AUDIO_DIR = os.path.join(SESSION_ROOT, "audio_chunks")
-SESSION_LOG_DIR = os.path.join(SESSION_ROOT, "logs")
+        self._create_directories()
 
-# Ensure folders exist at import time
-os.makedirs(SESSION_AUDIO_DIR, exist_ok=True)
-os.makedirs(SESSION_LOG_DIR, exist_ok=True)
+    def _create_directories(self):
+        os.makedirs(self.audio_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)

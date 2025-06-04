@@ -1,39 +1,46 @@
+# core/logger.py
 import logging
 import os
 from logging import LogRecord
 from logging.handlers import RotatingFileHandler
-from config.session import SESSION_ID
-from config.config import SESSION_LOG_DIR
 
-LOG_PATH = os.path.join(SESSION_LOG_DIR, "session.log")
-os.makedirs(SESSION_LOG_DIR, exist_ok=True)
 
-# Custom filter to inject session_id into log records
-class SessionFilter(logging.Filter):
-    def filter(self, record: object) -> bool | LogRecord:
-        record.session_id = SESSION_ID
-        return True
+def setup_logger(session_id: str, log_dir: str) -> logging.Logger:
+    """
+    Sets up a session-specific logger with rotating file and console output.
 
-# Formatter with session ID
-formatter = logging.Formatter(
-    "%(asctime)s [%(session_id)s] [%(threadName)s] [%(levelname)s] %(message)s"
-)
+    Args:
+        session_id (str): Unique session identifier
+        log_dir (str): Path to the log directory
 
-# File handler
-file_handler = RotatingFileHandler(LOG_PATH, maxBytes=5_000_000, backupCount=3)
-file_handler.setFormatter(formatter)
-file_handler.addFilter(SessionFilter())
+    Returns:
+        logging.Logger: Configured logger instance
+    """
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "session.log")
 
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
-console_handler.addFilter(SessionFilter())
+    # Custom filter to inject session ID into each log record
+    class SessionFilter(logging.Filter):
+        def filter(self, record: LogRecord) -> bool:
+            record.session_id = session_id
+            return True
 
-# Configure root logger
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[file_handler, console_handler]
-)
+    formatter = logging.Formatter(
+        "%(asctime)s [%(session_id)s] [%(threadName)s] [%(levelname)s] %(message)s"
+    )
 
-# Expose app-level logger
-logger = logging.getLogger("transcription_app")
+    file_handler = RotatingFileHandler(log_path, maxBytes=5_000_000, backupCount=3)
+    file_handler.setFormatter(formatter)
+    file_handler.addFilter(SessionFilter())
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.addFilter(SessionFilter())
+
+    logger = logging.getLogger("transcription_app")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()  # Avoid duplicate handlers if reinitialized
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger

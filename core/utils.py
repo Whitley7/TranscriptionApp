@@ -156,3 +156,52 @@ def save_transcript(transcript: Dict, output_path: str, logger=None):
     except Exception as e:
         if logger:
             logger.error(f"Failed to save transcript to {output_path}: {e}", exc_info=True)
+
+import os
+import glob
+import json
+from config.config import CHUNK_DURATION, OVERLAP_DURATION
+from core.text_postprocessor import TranscriptBuffer
+
+
+def merge_transcripts_to_txt(session, logger=None):
+    """
+    Loads all per-chunk transcript .json files, deduplicates overlapping
+    text using a buffer, and merges into one final .txt file with real
+    global timestamps.
+    """
+    transcript_dir = session.transcript_dir
+    output_path = os.path.join(transcript_dir, "final_transcript.txt")
+    chunk_files = sorted(glob.glob(os.path.join(transcript_dir, "chunk_*.json")))
+
+    if logger:
+        logger.info(f"Merging {len(chunk_files)} transcript chunks into {output_path}")
+
+    step_duration = CHUNK_DURATION - OVERLAP_DURATION
+    buffer = TranscriptBuffer(window_size=3)
+    lines = []
+
+    for i, path in enumerate(chunk_files):
+        try:
+            chunk_offset = i * step_duration
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for seg in data.get("segments", []):
+                    global_start = chunk_offset + seg["start"]
+                    global_end = chunk_offset + seg["end"]
+                    text = seg["text"]
+                    cleaned = buffer.deduplicate(text)
+                    if cleaned:
+                        line = f"[{global_start:.2f} – {global_end:.2f}] {cleaned}"
+                        lines.append(line)
+        except Exception as e:
+            if logger:
+                logger.warning(f"Failed to process {path}: {e}")
+
+    with open(output_path, "w", encoding="utf-8") as out:
+        out.write("\n".join(lines))
+
+    if logger:
+        logger.info(f"Final transcript saved to {output_path}")
+
+

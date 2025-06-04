@@ -1,4 +1,3 @@
-# audio/chunk_processor.py
 from itertools import count as counter
 import numpy as np
 import time
@@ -22,10 +21,6 @@ def chunk_processor(
     logger,
     transcription_queue: queue.Queue
 ):
-    """
-    Thread function that accumulates frames, builds overlapping chunks,
-    detects speech, saves chunks, and enqueues them for transcription.
-    """
     if sample_rate != CONFIG_SAMPLE_RATE:
         logger.warning(f"Chunk processor started with sample_rate {sample_rate}Hz, "
                        f"but config SAMPLE_RATE is {CONFIG_SAMPLE_RATE}Hz. Using {sample_rate}Hz.")
@@ -54,7 +49,6 @@ def chunk_processor(
                 concatenated_audio = np.concatenate(buffer, axis=0)
                 current_chunk = concatenated_audio[:chunk_size_samples].copy()
 
-                # Prepare next buffer (with overlap)
                 if 0 < overlap_size_samples <= len(current_chunk):
                     tail = current_chunk[-overlap_size_samples:].copy()
                     remaining = concatenated_audio[chunk_size_samples:]
@@ -82,7 +76,8 @@ def chunk_processor(
 
                     logger.info(f"Saved speech chunk: {filename} | Duration: {chunk_duration:.2f}s")
 
-                    transcription_queue.put((filename, chunk_id_str))
+                    # 👇 Now passes chunk_index along with the rest
+                    transcription_queue.put((filename, chunk_id_str, chunk_id))
 
                 else:
                     cumulative_silent_s += effective_new_audio_per_step_s

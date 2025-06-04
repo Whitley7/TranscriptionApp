@@ -1,4 +1,5 @@
 # main.py
+import os
 import threading
 import time
 import queue
@@ -13,19 +14,41 @@ from config.session import SessionManager
 from config.config import SAMPLE_RATE as CONFIG_APP_SAMPLE_RATE
 from transcriber import send_to_asr
 
+
 # Shutdown flag
 shutdown_event = threading.Event()
 transcription_queue = queue.Queue()
 
 def transcriber_worker(transcription_queue, session, stats, shutdown_event, logger):
+    """
+    Background worker that receives audio chunk filepaths,
+    transcribes them, and handles paragraph-mode writing with final flush.
+    """
     while not shutdown_event.is_set():
         try:
-            filepath, chunk_id = transcription_queue.get(timeout=1)
-            send_to_asr(filepath, chunk_id, session, stats, logger)
+            filepath, chunk_id, chunk_index = transcription_queue.get(timeout=1)
+            send_to_asr(filepath, chunk_id, chunk_index, session, stats, logger)
         except queue.Empty:
             continue
         except Exception as e:
-            logger.error(f"Error in transcriber_worker: {e}", exc_info=True)
+            if logger:
+                logger.error(f"Transcriber worker error: {e}", exc_info=True)
+
+    # Fallback: Final paragraph flush at shutdown
+    if hasattr(session, "paragraph_buffer") and session.paragraph_buffer:
+        final_text = " ".join(session.paragraph_buffer).strip()
+        timestamp = getattr(session, "paragraph_start_time", 0.0)
+        final_line = f"[{timestamp:.2f}] {final_text}"
+        final_path = os.path.join(session.transcript_dir, "final_transcript.txt")
+
+        try:
+            with open(final_path, "a", encoding="utf-8") as f:
+                f.write(final_line + "\n\n")
+            if logger:
+                logger.info("Final paragraph flushed at shutdown.")
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to flush final paragraph: {e}", exc_info=True)
 
 def main():
     """
@@ -122,6 +145,7 @@ def main():
                 logger.info("Transcriber thread joined.")
 
         logger.info("All threads shut down cleanly.")
+
         session_end = datetime.now()
         duration = session_end - session_start
 

@@ -1,7 +1,9 @@
 # main.py
 import threading
 import time
+import queue
 from datetime import datetime
+
 from audio.input_device import select_input_device
 from audio.audio_input import AudioInputManager
 from audio.chunk_processor import chunk_processor
@@ -9,57 +11,79 @@ from core.logger import setup_logger
 from config.session_stats import SessionStats
 from config.session import SessionManager
 from config.config import SAMPLE_RATE as CONFIG_APP_SAMPLE_RATE
+from transcriber import send_to_asr
 
 # Shutdown flag
 shutdown_event = threading.Event()
+transcription_queue = queue.Queue()
 
+def transcriber_worker(transcription_queue, session, stats, shutdown_event, logger):
+    while not shutdown_event.is_set():
+        try:
+            filepath, chunk_id = transcription_queue.get(timeout=1)
+            send_to_asr(filepath, chunk_id, session, stats, logger)
+        except queue.Empty:
+            continue
+        except Exception as e:
+            logger.error(f"Error in transcriber_worker: {e}", exc_info=True)
 
 def main():
     """
     Main entry point of the application. Handles device selection,
     launches audio input stream and background chunk processing thread.
     """
-    session = SessionManager()  # Initialize session (creates dirs + ID)
-    logger = setup_logger(session.session_id, session.log_dir)  # Initialize logger for this session
+    session = SessionManager()
+    logger = setup_logger(session.session_id, session.log_dir)
 
     logger.info(f"Session ID: {session.session_id}")
     logger.info(f"Audio directory: {session.audio_dir}")
     logger.info(f"Log directory: {session.log_dir}")
 
-    # Device selection
     device_index, device_native_sample_rate = select_input_device()
     app_sample_rate = CONFIG_APP_SAMPLE_RATE
 
     logger.info(f"Selected device index: {device_index} (Native SR: {device_native_sample_rate} Hz). "
                 f"Application will attempt to use configured sample rate: {app_sample_rate} Hz.")
 
-    # Start audio input manager and session statistics
     audio_manager = AudioInputManager(app_sample_rate, device_index, logger)
     stats = SessionStats()
     session_start = datetime.now()
 
-    # Launch background chunk processor
+    # Start chunk processor thread
     processor_thread = threading.Thread(
         target=chunk_processor,
-        args=(app_sample_rate, shutdown_event, stats, audio_manager, session, logger),  # Pass session
+        args=(app_sample_rate, shutdown_event, stats, audio_manager, session, logger, transcription_queue),
         daemon=True,
         name="ChunkProcessor",
     )
     processor_thread.start()
     logger.info("Chunk processor thread started.")
 
+    # Start transcriber thread
+    transcriber_thread = threading.Thread(
+        target=transcriber_worker,
+        args=(transcription_queue, session, stats, shutdown_event, logger),
+        daemon=True,
+        name="TranscriberWorker",
+    )
+    transcriber_thread.start()
+    logger.info("Transcriber thread started.")
+
     stream = None
     try:
         stream = audio_manager.start_stream()
-
-        if stream.samplerate != app_sample_rate:
-            logger.warning(f"Audio stream started with actual sample rate {stream.samplerate} Hz, "
-                           f"though {app_sample_rate} Hz was requested.")
+        if stream is None:
+            logger.error("audio_manager.start_stream() returned None — stream creation failed.")
+            return
         else:
-            logger.info(f"Audio input stream successfully started at {stream.samplerate} Hz.")
+            logger.info(f"Audio input stream object created: {stream}")
 
-        stream.start()
-        logger.info("Audio input stream running. Press Ctrl+C to stop.")
+        try:
+            stream.start()
+            logger.info("Audio input stream running. Press Ctrl+C to stop.")
+        except Exception as e:
+            logger.error(f"Failed to start audio input stream: {e}", exc_info=True)
+            return
 
         while not shutdown_event.is_set():
             time.sleep(0.1)
@@ -89,9 +113,22 @@ def main():
             else:
                 logger.info("Chunk processor thread joined.")
 
+        if transcriber_thread.is_alive():
+            logger.info("Waiting for transcriber thread to join...")
+            transcriber_thread.join(timeout=5.0)
+            if transcriber_thread.is_alive():
+                logger.warning("Transcriber thread did not join in time.")
+            else:
+                logger.info("Transcriber thread joined.")
+
         logger.info("All threads shut down cleanly.")
         session_end = datetime.now()
         duration = session_end - session_start
+
+        avg_latency, min_latency, max_latency, stddev_latency = stats.latency_summary()
+        avg_duration = stats.average_chunk_duration()
+        most_lang, most_lang_count = stats.most_common_language()
+        skip_reasons_str = ", ".join(f"{k}: {v}" for k, v in stats.skip_reasons.items())
 
         logger.info("===== SESSION SUMMARY =====")
         logger.info(f"Session ID: {session.session_id}")
@@ -99,9 +136,13 @@ def main():
         logger.info(f"Ended at:   {session_end}")
         logger.info(f"Duration:   {duration}")
         logger.info(f"Chunks saved: {stats.saved_chunks}")
-        logger.info(f"Chunks skipped: {stats.skipped_chunks}")
+        logger.info(f"Chunks skipped: {stats.skipped_chunks} ({skip_reasons_str})")
+        logger.info(
+            f"Average latency: {avg_latency:.2f}s (min: {min_latency:.2f}s, max: {max_latency:.2f}s, stddev: {stddev_latency:.2f}s)")
+        logger.info(f"Avg chunk duration: {avg_duration:.2f}s")
+        logger.info(f"First transcription latency: {stats.first_latency_value:.2f}s")
+        logger.info(f"Most detected language: {most_lang} ({most_lang_count})")
         logger.info("=============================")
-
 
 if __name__ == "__main__":
     main()

@@ -44,19 +44,27 @@ class AudioInputManager:
             device_name = device_info['name']
             self.logger.info(f"Selected audio input device: {self.device_index} - {device_name} "
                              f"(Max input channels: {device_info['max_input_channels']})")
+
             if CHANNELS > device_info['max_input_channels']:
                 self.logger.error(f"Configured CHANNELS ({CHANNELS}) exceeds device capability.")
         except Exception as e:
-            self.logger.error(f"Could not query device {self.device_index}: {e}")
-            device_name = "Unknown"
+            self.logger.error(f"Could not query device {self.device_index}: {e}", exc_info=True)
+            return None
 
-        self.logger.info(f"Initializing audio input stream at {self.sample_rate} Hz")
+        self.logger.info(f"Initializing audio input stream at {self.sample_rate} Hz "
+                         f"with blocksize {blocksize} and dtype {CONFIG_AUDIO_FORMAT}")
 
-        return sd.InputStream(
-            device=self.device_index,
-            channels=CHANNELS,
-            samplerate=self.sample_rate,
-            dtype=CONFIG_AUDIO_FORMAT,
-            blocksize=blocksize,
-            callback=self.record_callback
-        )
+        try:
+            stream = sd.InputStream(
+                device=self.device_index,
+                channels=CHANNELS,
+                samplerate=self.sample_rate,
+                dtype=CONFIG_AUDIO_FORMAT,
+                blocksize=blocksize,
+                callback=self.record_callback
+            )
+            self.logger.info("InputStream object successfully created")
+            return stream
+        except Exception as e:
+            self.logger.error(f"Failed to create InputStream: {e}", exc_info=True)
+            return None

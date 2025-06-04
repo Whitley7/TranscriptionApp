@@ -8,7 +8,8 @@ from config.config import (
     SILENCE_THRESHOLD, CHANNELS, AUDIO_FORMAT as CONFIG_AUDIO_FORMAT,
     FRAME_DURATION, SAMPLE_RATE, VAD_MODE, RMS_PREFILTER_THRESHOLD
 )
-from typing import Optional
+from typing import Optional, Dict
+import json
 
 # Initialize VAD instance using VAD_MODE from config
 try:
@@ -136,3 +137,22 @@ def log_chunk_info(chunk_identifier: str, volume_metric: float, duration: float,
         logger.info(f"Skipped chunk {chunk_identifier} | Vol: {volume_metric:.4f} | Duration: {duration:.2f}s{reason_str}")
     else:
         logger.info(f"Processed chunk {chunk_identifier} | Vol: {volume_metric:.4f} | Duration: {duration:.2f}s")
+
+
+def save_transcript(transcript: Dict, output_path: str, logger=None):
+    """
+    Saves transcript to a JSON file.
+
+    Args:
+        transcript (dict): The transcript object.
+        output_path (str): Path to save the JSON file.
+    """
+    try:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(transcript, f, ensure_ascii=False, indent=2)
+        if logger:
+            logger.info(f"Transcript saved: {output_path}")
+    except Exception as e:
+        if logger:
+            logger.error(f"Failed to save transcript to {output_path}: {e}", exc_info=True)

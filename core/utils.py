@@ -5,8 +5,11 @@ import numpy as np
 import webrtcvad
 
 from config.config import (
-    SILENCE_THRESHOLD, CHANNELS, AUDIO_FORMAT as CONFIG_AUDIO_FORMAT,
-    FRAME_DURATION, SAMPLE_RATE, VAD_MODE, RMS_PREFILTER_THRESHOLD
+    SILENCE_THRESHOLD,
+    CHANNELS,
+    FRAME_DURATION,
+    VAD_MODE,
+    RMS_PREFILTER_THRESHOLD,
 )
 from typing import Optional
 
